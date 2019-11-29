@@ -3,4 +3,5 @@ Description=Simple http server providing on_publish authentication for the nginx
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/nginx-rtmp-authn-server -c /etc/nginx-rtmp-authn-server.conf
+ExecStart=/usr/local/bin/rtmp-authserver -c /etc/rtmp-authserver.conf
+User=nobody

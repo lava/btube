@@ -134,7 +134,7 @@ void run_server()
 	}
 
         rsp.code = 200;
-        rsp.body = "<html><body>i"
+        rsp.body = "<html><body>"
 		   "Your stream key: " + key + "<br />"
 		   "Start stream before " + to_string(valid_until) +
 		   "</body></html>";
