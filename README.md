@@ -21,5 +21,5 @@ This is where this server comes in.
 The server provides two endpoints, `/generate` for users who want
 to start their stream and `/verify` for the nginx-rtmp module.
 
-Please look at the [./etc/nginx.conf.example](nginx example config)
+Please look at the [nginx example config](./etc/nginx.conf.example)
 for details.
