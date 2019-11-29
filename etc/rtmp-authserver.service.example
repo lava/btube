@@ -1,0 +1,6 @@
+[Unit]
+Description=Simple http server providing on_publish authentication for the nginx-rtmp module
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nginx-rtmp-authn-server -c /etc/nginx-rtmp-authn-server.conf
