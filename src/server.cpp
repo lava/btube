@@ -2,9 +2,8 @@
 #include <random>
 #include <unordered_map>
 #include <set>
+#include <fstream>
 
-//#include <boost/algorithm/string.hpp>
-//#include <boost/algorithm/string/classification.hpp>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 
@@ -31,6 +30,7 @@ bool s_tls;
 std::string s_bindaddr;
 bool s_key_reuse;
 unsigned int s_threads;
+crow::mustache::template_t s_success_template("");
 
 std::string random_string(int n) {
 	static thread_local std::mt19937* rng;
@@ -95,6 +95,16 @@ std::string to_string(const std::chrono::system_clock::time_point &time_point)
   return ss.str();
 }
 
+
+crow::mustache::template_t DEFAULT_SUCCESS_TEMPLATE= std::string(R"_(
+<html>
+<body>
+Your stream key: {{key}} <br />
+Start stream before {{valid_until}}
+</body>
+</html>
+)_");
+
 void run_server()
 {
     crow::SimpleApp app;
@@ -124,20 +134,21 @@ void run_server()
             return;
         }
 
-	std::string key = random_string(25);
-	timepoint valid_until = std::chrono::system_clock::now() + s_key_expiry;
+      	std::string key = random_string(25);
+      	timepoint valid_until = std::chrono::system_clock::now() + s_key_expiry;
 
-	{
-		std::lock_guard<std::mutex> lock(s_streamkeys_mutex);
-		cleanup_old_keys(s_streamkeys);
-		s_streamkeys.push_back(streamkey {key, valid_until});
-	}
+      	{
+      		std::lock_guard<std::mutex> lock(s_streamkeys_mutex);
+      		cleanup_old_keys(s_streamkeys);
+      		s_streamkeys.push_back(streamkey {key, valid_until});
+      	}
+
+        crow::mustache::context ctx;
+        ctx["key"] = key;
+        ctx["valid_until"] = to_string(valid_until);
 
         rsp.code = 200;
-        rsp.body = "<html><body>"
-		   "Your stream key: " + key + "<br />"
-		   "Start stream before " + to_string(valid_until) +
-		   "</body></html>";
+        rsp.body = s_success_template.render(ctx);
         rsp.end();
 
     });
@@ -184,6 +195,7 @@ void parse_configuration(int argc, char* argv[])
   std::string secret;
   std::string bindaddr;
   std::string config_filename;
+  std::string template_path;
   uint16_t port;
   unsigned int expiry, threads;
   bool tls, key_reuse;
@@ -201,6 +213,8 @@ void parse_configuration(int argc, char* argv[])
      "Minutes until stream key expires")
     ("key-reuse", bpo::value<bool>(&key_reuse)->default_value(true),
      "Allow using the same stream key multiple times until it expires")
+    ("success-template", bpo::value<std::string>(&template_path),
+      "Path to mustache template to use after successfully generating streamkey")
     ("threads", bpo::value<unsigned int>(&threads)->default_value(1),
      "Number of worker threads");
 
@@ -222,6 +236,19 @@ void parse_configuration(int argc, char* argv[])
   s_key_expiry = std::chrono::minutes(expiry);
   s_key_reuse = key_reuse;
   s_threads = threads;
+
+  if (vm.count("success-template")) {
+    std::ifstream ifs(vm["success-template"].as<std::string>(), std::ios::binary | std::ios::ate);
+    std::streamsize size = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+
+    std::string stemplate(size, '\0');
+    ifs.read(&stemplate[0], size);
+    s_success_template = crow::mustache::template_t(stemplate);
+  } else {
+    // new (&s_success_template) crow::mustache::template_t(DEFAULT_SUCCESS_TEMPLATE);
+    s_success_template = DEFAULT_SUCCESS_TEMPLATE;
+  }
 
   if (!s_tls && (s_bindaddr != "localhost" && s_bindaddr != "127.0.0.1")) {
     throw std::runtime_error("Plain HTTP only permitted when bound to localhost");
