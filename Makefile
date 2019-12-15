@@ -1,7 +1,7 @@
 server_sources = src/server.cpp
 server_objects = $(subst .cpp,.o,$(server_sources))
 server_cppflags = -I3rdparty/
-server_libs = -pthread -lboost_program_options -lboost_system
+server_libs = -pthread -lboost_program_options -lboost_system -largon2 -lfmt
 
 all: rtmp-authserver
 

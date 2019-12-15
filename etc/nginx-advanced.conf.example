@@ -1,0 +1,40 @@
+upstream backend {
+  server localhost:3223;
+}
+
+server {
+  server_name example.org;
+  listen 443 ssl;
+
+  location /generate {
+    proxy_pass http://backend;
+  }
+}
+
+rtmp {
+  server {
+    listen 1935;
+
+    application ingress {
+      live on;
+      record off;
+
+      on_publish http://localhost:3223/on_publish;
+    }
+  }
+
+  server {
+    listen 1936;
+
+    application egress {
+      live on;
+      hls on;
+      record off;
+
+      # TODO: Does the relay also call `on_publish`? If so, we
+      # might need a `/allow_only_localhost` endpoint.
+      on_publish http://localhost:3223/reject;
+      on_play http://localhost:3223/on_play;
+    }
+  }
+}
