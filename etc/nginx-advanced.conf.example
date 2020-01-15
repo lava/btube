@@ -1,13 +1,36 @@
-upstream backend {
-  server localhost:3223;
-}
+# This configuration assumes that `rtmp-authserver` is running
+# in multi-user mode listening on port 3223 on the same machine.
 
-server {
-  server_name example.org;
-  listen 443 ssl;
+events {}
 
-  location /generate {
-    proxy_pass http://backend;
+http {
+  upstream backend {
+    server 127.0.0.1:3223;
+  }
+
+  server {
+    server_name live.example.org;
+    listen 443 ssl http2;
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    root /var/www/livestreams;
+
+    location = / {
+        try_files /viewer.html =404;
+    }
+
+    location /generate {
+      proxy_pass http://backend;
+    }
+
+    location /login {
+      proxy_pass http://backend;
+    }
+
+    location /signup {
+      proxy_pass http://backend;
+    }
   }
 }
 
@@ -15,26 +38,22 @@ rtmp {
   server {
     listen 1935;
 
-    application ingress {
+    application publish {
       live on;
       record off;
 
-      on_publish http://localhost:3223/on_publish;
+      on_play http://127.0.0.1:3223/allow_local;
+      on_publish http://127.0.0.1:3223/on_publish;
     }
-  }
 
-  server {
-    listen 1936;
-
-    application egress {
+    application stream {
       live on;
       hls on;
+      hls_path /var/www/livestreams/raw;
       record off;
 
-      # TODO: Does the relay also call `on_publish`? If so, we
-      # might need a `/allow_only_localhost` endpoint.
-      on_publish http://localhost:3223/reject;
-      on_play http://localhost:3223/on_play;
+      on_publish http://127.0.0.1:3223/allow_local;
+      on_play http://127.0.0.1:3223/on_play;
     }
   }
 }

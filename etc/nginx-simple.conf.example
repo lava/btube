@@ -1,5 +1,5 @@
 upstream backend {
-  server localhost:3223;
+  server 127.0.0.1:3223;
 }
 
 server {
@@ -18,7 +18,7 @@ rtmp {
     application live {
       live on;
       record off;
-      on_publish http://localhost:3223/verify;
+      on_publish http://127.0.0.1:3223/verify;
     }
   }
 }
