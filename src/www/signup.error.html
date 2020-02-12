@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<title>bTube - {{error_code}}</title>
+</head>
+<body>
+	<div class="standardPage">
+	{{! TODO: This is a runtime include, which opens/reads the file every time the page is rendered :/  }}
+	{{!       We should probably just use a regular text preprocessor to resolve the include statically }}
+	{{> banner.mustache}}
+	<div class="contentSection">
+	    Error {{error_code}}: {{error_message}}
+	</div>
+	</div>
+</body>
+</html>

@@ -1,0 +1,145 @@
+:root {
+	/* Palette: https://colorpalettes.net/color-palette-4130/ */
+	--color0: #7c4d3d;
+	--color1: #c0855d;
+	--color2: #f3f5f4;
+	--color3: #d2694c;
+	--color4: #90342b;
+
+
+	--color-text-dark: var(--color0);
+	--color-text-medium: var(--color0);
+	--color-text-light: var(--color1);
+
+	--color-highlight-dark: var(--color4);
+	--color-highlight-medium: var(--color3);
+	--color-highlight-light: var(--color3);
+
+	--color-bg-light: var(--color2);
+	--color-bg-medium: var(--color2);
+	--color-bg-dark: var(--color2);
+
+	/* Palette: https://colorpalettes.net/color-palette-4146/
+	/* TODO: Figure out how to switch themes at runtime */
+	/*
+	--color0: #1f1d08;
+	--color1: #94ae3f;
+	--color2: #ebebeb;
+	--color3: #243754;
+	--color4: #101321;
+
+	--color-text-light: var(--color2);
+	--color-text-medium: var(--color2);
+	--color-text-dark: var(--color2);
+
+	--color-highlight-light: var(--color1);
+	--color-highlight-medium: var(--color1);
+	--color-highlight-dark: var(--color1);
+
+	--color-bg-dark: var(--color0);
+	--color-bg-medium: var(--color4);
+	--color-bg-light: var(--color3);
+	*/
+}
+
+body {
+  background-color: var(--color-bg-light);
+  color: var(--color-text-medium);
+}
+
+a {
+	color: var(--color-text-light);
+}
+
+strong {
+	color: var(--color-text-dark);
+	font-weight: bold;
+}
+
+.standardPage {	
+  text-align: center;
+  display: flex;
+}
+
+.formTitle {
+	text-align: center;
+    font-weight: 300;
+    color: var(--color-text-dark);
+}
+
+.formFieldsList {	
+  list-style-type: none;
+  padding: 0;
+}
+
+input[type=text],[type=password]  {
+  margin: 15px 0;
+  font-size: 16px;
+  padding: 10px;
+  width: 250px;
+  border: 1px solid var(--color-highlight-light);
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  background-color: var(--color-bg-medium);
+  color: var(--color-text-light);
+  outline: none;
+}
+
+input[type=submit] {
+  border: 1px solid var(--color-highlight-light);
+  background: var(--color-bg-medium);
+  font-size: 18px;
+  color: var(--color-text-light);
+  margin-top: 20px;
+  padding: 10px 50px;
+  cursor: pointer;
+  transition: .4s;
+}
+
+input[type=submit]:hover {
+  background: var(--color-highlight-light);
+  color: var(--color-bg-dark);
+  /*padding: 10px 80px;*/
+}
+
+.contentSection {
+  margin-top: 50px;
+  width: 550px;
+}
+
+form {
+  padding: 30px 0;
+  margin: 0px;
+  background-color: var(--color-bg-light);
+  color: var(--color-text-light);
+  transition: .2s;
+}
+
+.bannerSection {
+  width: 20%;
+  height: 800px;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-dark);
+  padding: 30px 0;
+  border-right: 5px solid var(--color-highlight-dark);
+  h2 {
+    padding-top: 30px;
+    font-weight: 300;
+    text-align: center;
+  }
+}
+
+.bannerSectionList {
+	margin-left: 0px;
+	list-style-type: none;
+}
+
+.bannerSectionListItem {
+	text-align: left;
+	padding: 5px;
+}
+
+.logo {
+	margin-bottom: 10px;
+}

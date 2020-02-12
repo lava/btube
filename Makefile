@@ -1,8 +1,8 @@
-server_sources = src/server.cpp src/endpoints_multiuser.cpp
+server_sources = src/server.cpp src/endpoints_multiuser.cpp src/userdb.cpp
 server_objects = $(subst .cpp,.o,$(server_sources))
 server_cppflags = -I3rdparty/
 server_cxxflags = -std=c++17
-server_libs = -pthread -lboost_program_options -lboost_system -largon2 -lfmt
+server_libs = -pthread -lboost_program_options -lboost_filesystem -lboost_system -largon2 -lfmt -lsqlite3
 
 all: rtmp-authserver
 
@@ -11,6 +11,10 @@ $(server_objects): %.o: %.cpp
 
 rtmp-authserver: $(server_objects)
 	g++ $+ $(LDFLAGS) $(server_libs) -o $@
+
+clean::
+	rm $(server_objects)
+	rm rtmp-authserver
 
 PREFIX = /usr/local
 

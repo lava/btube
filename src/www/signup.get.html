@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<title>bTube - Signup</title>
+</head>
+<body>
+	<div class="standardPage">
+		{{> banner.mustache}}
+		<div class="contentSection">
+		    <form action="./signup" method="POST">
+				<h2 class="formTitle">Sign Up</h2>
+				<ul class="formFieldsList">
+					<li>
+						<label for="user"></label>
+						<input name="user" id="user" placeholder="Username" type="text" />
+					</li>
+					<li>
+						<label for="password"></label>
+						<input name="password" id="password" placeholder="Password" type="password" />
+					</li>
+					<li>
+						<label for="secret"></label>
+						<input name="secret" id="secret" placeholder="Sign-Up Key" type="password" />
+					</li>
+					<li>
+		        		<input type="submit" value="Sign up"/>
+					</li>
+				</ul>
+		    </form>
+		</div>
+	</div>
+</body>
+</html>

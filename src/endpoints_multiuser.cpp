@@ -7,11 +7,15 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/filesystem.hpp>
 
 #include <fmt/printf.h>
 
 #include "expected.hpp"
 
+namespace rtmp_authserver {
+
+html_templates load_html(const std::string& html_path);
 
 namespace {
 
@@ -82,23 +86,30 @@ static std::string to_string(
 }
 
 
-static void cleanup_old_keys(std::vector<rtmp_authserver::streamkey>& v)
+static void cleanup_old_keys(std::vector<livestream>& v)
 {
         auto now = std::chrono::system_clock::now();
         auto end = std::remove_if(v.begin(), v.end(),
-                [&](const rtmp_authserver::streamkey& sk) { return sk.valid_until <= now; });
+                [&](const livestream& sk) { return sk.key_valid_until <= now; });
 
         v.erase(end, v.end());
 }
 
 
-// TODO: turn into template
-constexpr char NOT_AUTHORIZED[] =
-"<html><head></head><body>"
-  "You are not authorized to view this content.<br />"
-  "<a href=\"/login\">Log in</a> or <a href=\"/signup\">Sign up</a> <br />"
-"</body></html>";
+static std::string start_session(const std::string& user, backend_state* state)
+{
+    std::string random = random_string(64);
+    std::string session = user + "_" + random;
 
+    {
+        // If the user was deleted in the meantime we can end up with a
+        // session for a non-existing user here, not sure if that's bad.
+        std::lock_guard<std::mutex> lock(state->session_mutex);
+        state->sessions[user] = random;
+    }
+
+    return session;
+}
 
 static tl::expected<std::string, std::string>
 authorize_user(const crow::request& req, struct rtmp_authserver::backend_state* state)
@@ -153,71 +164,24 @@ authorize_user(const crow::request& req, struct rtmp_authserver::backend_state* 
     return user;
 }
 
-#define REQUIRE_AUTHORIZED_USER(rq, state, subject) \
+#define REQUIRE_AUTHORIZED_USER(rq, subject, state, error_template) \
     static_assert(std::is_same<decltype(subject), std::string>::value, \
                   "Subject argument must be of type std::string."); \
     { \
         tl::expected<std::string, std::string> subject_ = authorize_user(rq, state); \
         if (!subject_) { \
             fmt::fprintf(stderr, "%s\n", subject_.error()); \
-            return crow::response(401, NOT_AUTHORIZED); \
+            crow::mustache::context ctx; \
+            ctx["error_code"] = 401; \
+            ctx["error_message"] = "You are not authorized to view this page."; \
+            return crow::response(401, state->html.error_template.render(ctx)); \
         } \
         subject = subject_.value(); \
     }
 
 } // namespace {
 
-namespace rtmp_authserver {
 
-namespace html {
-
-crow::mustache::template_t SIGNUP = std::string(R"_(
-<html>
-<head />
-<body>
-    <form action="./signup" method="POST">
-        Username: <input name="user" type="text" /><br />
-        Password: <input name="password" type="password" /><br />
-        Sign-up Key: <input name="secret" type="password" /><br />
-        <input type="submit" value="Sign up" />
-    </form>
-</body>
-</html>)_");
-
-
-crow::mustache::template_t LOGIN = std::string(R"_(
-<html>
-<head />
-<body>
-    <form action="./login" method="POST">
-        Username: <input name="user" type="text" /><br />
-        Password: <input name="password" type="password" /><br />
-        <input type="submit" value="Log in" />
-    </form>
-</body>
-</html>)_");
-
-
-crow::mustache::template_t GENERATE = std::string(R"_(
-<html>
-<head />
-<body>
-    <form action="./generate" method="POST">
-        Valid for: <input name="valid_for" type="text" /> seconds (enter 0 for a single-use key)<br />
-        <input type="submit" value="Generate stream key" />
-    </form>
-</body>
-</html>)_");
-
-crow::mustache::template_t SUCCESS = std::string(R"_(
-<html>
-<body>
-    Your stream key: {{key}} <br />
-    Start stream before {{valid_until}}
-</body>
-</html>)_");
-
-} // end namespace html
 
 
 bool operator<(const user& lhs, const user& rhs)
@@ -240,8 +204,8 @@ bool operator<(const user& lhs, const std::string& rhs)
 
 crow::response signup_get(const crow::request& rq, void* opaque)
 {
-    // TODO: read from file; pass template params
-    return html::SIGNUP.render();
+    auto* state = static_cast<struct backend_state*>(opaque);
+    return state->html.signup_get.render();
 }
 
 
@@ -249,24 +213,31 @@ crow::response signup_post(const crow::request& rq, void* opaque)
 {
     auto* state = static_cast<struct backend_state*>(opaque);
 
+    auto make_error = [state] (int code, const char* msg) {
+        crow::mustache::context ctx;
+        ctx["error_code"] = code;
+        ctx["error_message"] = msg;
+        return state->html.signup_error.render(ctx);
+    };
+
     auto params = parse_url_form(rq.body);
     std::string secret = params["secret"];
     if (secret != state->signup_key) {
-        return crow::response(403, "Wrong signup key.");
+        return make_error(403, "Wrong signup key");
     }
 
     std::string username = params["user"];
     if (username.empty()) {
-        return crow::response(400, "Missing 'user' parameter.");
+        return make_error(400, "Missing 'user' parameter");
     }
 
     if (!std::all_of(username.begin(), username.end(), ::isalnum)) {
-        return crow::response(400, "Invalid character in 'user': Only alphanumeric characters allowed.");
+        return make_error(400, "Invalid character in 'user': Only alphanumeric characters allowed");
     }
 
     std::string password = params["password"];
     if (password.empty()) {
-        return crow::response(400, "Missing 'password' parameter.");
+        return make_error(400, "Missing 'password' parameter");
     }
 
     // There's no documentation on the max size of `encoded`,
@@ -317,19 +288,31 @@ crow::response signup_post(const crow::request& rq, void* opaque)
     }
 
     if (!success) {
-        return crow::response(400, "Username already taken.");
+        return make_error(400, "Username already taken.");
     }
 
-    // TODO: Automatically log in the user
-    crow::response rsp(302, "Done.");
-    rsp.set_header("Location", "/login");
+    state->db.create(username, encoded);
+
+    // TODO: Maybe we should combine this with the locked code block above.
+    std::string session = start_session(username, state);
+
+    crow::response rsp;
+    if (state->dev_mode) {
+        rsp.set_header("Set-Cookie", "session=" + session);
+    } else {
+        rsp.set_header("Set-Cookie", "session=" + session + ";Secure;HttpOnly");
+    }
+    crow::mustache::context ctx;
+    ctx["user"] = username;
+    rsp.body = state->html.signup_post.render(ctx);
     return rsp;
 }
 
 
 crow::response login_get(const crow::request& rq, void* opaque)
 {
-    return html::LOGIN.render();
+    auto* state = static_cast<struct backend_state*>(opaque);
+    return state->html.login_get.render();
 }
 
 
@@ -337,6 +320,13 @@ crow::response login_post(const crow::request& rq, void* opaque)
 {
     auto* state = static_cast<struct backend_state*>(opaque);
     crow::response result;
+
+    auto make_error = [state] (int code, const char* msg) {
+        crow::mustache::context ctx;
+        ctx["error_code"] = code;
+        ctx["error_message"] = msg;
+        return state->html.login_error.render(ctx);
+    };
 
     auto params = parse_url_form(rq.body);
     std::string user = params["user"];
@@ -356,33 +346,26 @@ crow::response login_post(const crow::request& rq, void* opaque)
     } while (false);
 
     if (!user_found) {
-        return crow::response(403, "No such user");     
+        return make_error(403, "No such user");     
     }
 
     int error = argon2id_verify(encoded_password.c_str(), password.c_str(), password.size());
     if (error != ARGON2_OK) {
-        return crow::response(403, "Wrong password");
+        return make_error(403, "Wrong password");
     }
 
-    std::string random = random_string(64);
-    std::string session = user + "_" + random;
-
-    {
-        // If the user was deleted in the meantime we can end up with a
-        // session for a non-existing user here, not sure if that's bad.
-        std::lock_guard<std::mutex> lock(state->session_mutex);
-        state->sessions[user] = random;
-    }
+    std::string session = start_session(user, state);
 
     crow::response rsp;
-    rsp.code = 302;
+    // TODO: Cookie stuff should probably we part of `start_session()`.
     if (state->dev_mode) {
         rsp.set_header("Set-Cookie", "session=" + session);
     } else {
         rsp.set_header("Set-Cookie", "session=" + session + ";Secure;HttpOnly");
     }
-    rsp.set_header("Location", "/generate");
-    rsp.body = "<html><head /><body>Logged in as '" + user + "!'</body></html>";
+    crow::mustache::context ctx;
+    ctx["user"] = user;
+    rsp.body = state->html.login_post.render(ctx);
     return rsp;
 }
 
@@ -391,8 +374,10 @@ crow::response generate_get(const crow::request& rq, void* opaque)
 {
     auto* state = static_cast<struct backend_state*>(opaque);
     std::string user;
-    REQUIRE_AUTHORIZED_USER(rq, state, user);
-    return crow::response(html::GENERATE.render());
+    REQUIRE_AUTHORIZED_USER(rq, user, state, generate_error);
+    crow::mustache::context ctx;
+    ctx["user"] = user;
+    return crow::response(200, state->html.generate_get.render(ctx));
 }
 
 
@@ -400,22 +385,118 @@ crow::response generate_post(const crow::request& rq, void* opaque)
 {
     auto* state = static_cast<struct backend_state*>(opaque);
     std::string user;
-    REQUIRE_AUTHORIZED_USER(rq, state, user);
+    REQUIRE_AUTHORIZED_USER(rq, user, state, generate_error);
+
+    crow::mustache::context ctx;
+    ctx["user"] = user;
 
     std::string key = random_string(25);
-    timepoint valid_until = std::chrono::system_clock::now() + state->default_expiry;
+
+    // TODO: parse actual values from request
+    auto params = parse_url_form(rq.body);
+    std::string ppublic = params["public"];
+    fmt::printf("got param %s\n", ppublic);
+    std::string validity = params["validity"];
+    char* idx;
+    int validity_seconds = std::strtol(validity.c_str(), &idx, 10);
+    if ((&validity[0] + validity.size()) != idx) {
+        ctx["error_code"] = 400;
+        ctx["error_message"] = "Couldn't parse validity as int";
+        return crow::response(400, state->html.generate_error.render(ctx));
+    }
+    std::string title = params["title"];
+    bool is_public = params["public"] == "true";
+    timepoint valid_until = std::chrono::system_clock::now() + std::chrono::seconds(validity_seconds);
+    bool is_live = false;
 
     {
-        std::lock_guard<std::mutex> lock(state->streamkeys_mutex);
-        cleanup_old_keys(state->streamkeys);
-        state->streamkeys.push_back(streamkey {key, user, valid_until});
+        std::lock_guard<std::mutex> lock(state->streams_mutex);
+        cleanup_old_keys(state->streams);
+        state->streams.push_back(livestream {key, user, title, is_public, is_live, valid_until});
+    }
+
+    ctx["stream_key"] = key;
+    ctx["valid_until"] = to_string(valid_until);
+    ctx["title"] = title;
+    ctx["public"] = is_public;
+    // ctx["rtmp_url"] = ""
+    return crow::response(200, state->html.generate_post.render(ctx));
+}
+
+
+crow::response list_get(const crow::request& rq, void* opaque)
+{
+    auto* state = static_cast<struct backend_state*>(opaque);
+    tl::expected<std::string, std::string> user = authorize_user(rq, state);
+
+    std::vector<livestream> streams;
+    streams.reserve(24); // Can't know the required size until we lock, but we don't want to do the allocation while locking
+    {
+        std::lock_guard<std::mutex> lock(state->streams_mutex);
+        if (user) {        
+            std::copy_if(state->streams.begin(), state->streams.end(), std::back_inserter(streams),
+                [](const livestream& stream) { return stream.is_live; });
+        } else {
+            std::copy_if(state->streams.begin(), state->streams.end(), std::back_inserter(streams),
+                [](const livestream& stream) { return stream.is_live && stream.is_public; });
+        }
     }
 
     crow::mustache::context ctx;
-    ctx["key"] = key;
-    ctx["valid_until"] = to_string(valid_until);
+    if (user) {
+        ctx["user"] = user.value();
+    }
 
-    return crow::response(200, html::SUCCESS.render(ctx));
+    std::vector<crow::mustache::context> stream_contexts;
+    stream_contexts.reserve(streams.size());
+    for (const auto& stream : streams) {
+        crow::mustache::context stream_ctx;
+        stream_ctx["name"] = stream.username;
+        stream_ctx["title"] = stream.title;
+        stream_ctx["public"] = stream.is_public;
+        stream_contexts.emplace_back(std::move(stream_ctx));
+    }
+    ctx["streams"] = std::move(stream_contexts);
+    return crow::response(200, state->html.list_get.render(ctx));
+}
+
+
+crow::response view_get(const crow::request& rq, const std::string& streamname, void* opaque)
+{
+    auto* state = static_cast<struct backend_state*>(opaque);
+    tl::expected<std::string, std::string> user = authorize_user(rq, state);
+ 
+    // TODO: do the actual logic here
+    livestream stream_info;
+    bool valid = false;;
+    {
+        std::lock_guard<std::mutex> lock(state->streams_mutex);
+        auto it = std::find_if(state->streams.begin(), state->streams.end(),
+            [&streamname](const livestream& stream) { return stream.username == streamname; });
+        if (it != state->streams.end()) {
+            valid = true;
+            stream_info = *it;
+        }
+    }
+
+    // Show private streams only to signed-up users.
+    if (!user && valid && !stream_info.is_public) {
+        valid = false;
+    }
+
+    crow::mustache::context ctx;
+    if (user) {
+        ctx["user"] = user.value();
+    }
+    crow::mustache::context stream_ctx;
+    stream_ctx["name"] = streamname; // TODO: Is this enabling XSS attacks?
+    if (valid ) {
+        stream_ctx["live"] = stream_info.is_live;
+        stream_ctx["public"] = stream_info.is_public;
+        stream_ctx["title"] = stream_info.title;
+    }
+    ctx["stream"] = std::move(stream_ctx);
+    return crow::response(200, state->html.view_get.render(ctx));
 }
 
 
@@ -434,18 +515,18 @@ crow::response on_publish(const crow::request& rq, void* opaque)
     auto* state = static_cast<struct backend_state*>(opaque);
     auto params = parse_url_form(rq.body);
     std::string key = params["name"];
-    streamkey key_info;
+    livestream stream_info;
     bool valid;
     {
-        std::lock_guard<std::mutex> lock(state->streamkeys_mutex);
-        cleanup_old_keys(state->streamkeys);
+        std::lock_guard<std::mutex> lock(state->streams_mutex);
+        cleanup_old_keys(state->streams);
 
-        auto it = std::find_if(state->streamkeys.begin(), state->streamkeys.end(),
-            [&](const streamkey& sk) { return sk.key == key; });
+        auto it = std::find_if(state->streams.begin(), state->streams.end(),
+            [&](const livestream& sk) { return sk.key == key; });
 
-        valid = it != state->streamkeys.end();
+        valid = it != state->streams.end();
         if (valid) {
-            key_info = *it; 
+            stream_info = *it; 
         }
     }
 
@@ -453,7 +534,7 @@ crow::response on_publish(const crow::request& rq, void* opaque)
         return crow::response(403);
     }
 
-    std::string redirectLocation = fmt::format("{}/{}", state->redirect_url, key_info.username);
+    std::string redirectLocation = fmt::format("{}/{}", state->redirect_url, stream_info.username);
 
     fmt::printf("Redirecting stream %s to %s\n", key, redirectLocation);
 
@@ -470,6 +551,59 @@ void validate_config(const endpoints_config& config)
     // TODO - verify that redirect_url contains ip literal (no hostname allowed)
 }
 
+// TODO: Set this in the build system
+#ifndef DEFAULT_HTML_PATH
+#define DEFAULT_HTML_PATH "/usr/share/rtmp_authserver/html"
+#define DEFAULT_USERDB_PATH "users.db"
+#endif
+
+namespace fs = boost::filesystem;
+
+html_templates load_html(const std::string& html_path)
+{
+    // TODO: Live reload when the path changes on disk.
+    fs::path overrides {html_path};
+    fs::path defaults {DEFAULT_HTML_PATH};
+
+    html_templates templates;
+
+    std::map<const char*, crow::mustache::template_t*> m {
+        {"list.get.html", &templates.list_get },
+        {"view.get.html", &templates.view_get },
+        {"login.get.html", &templates.login_get },
+        {"login.post.html", &templates.login_post },
+        {"login.error.html", &templates.login_error },
+        {"signup.get.html", &templates.signup_get },
+        {"signup.post.html", &templates.signup_post },
+        {"signup.error.html", &templates.signup_error },
+        {"generate.get.html", &templates.generate_get },
+        {"generate.post.html", &templates.generate_post },
+        {"generate.error.html", &templates.generate_error },
+    };
+
+    for (const auto& kv : m) {
+        auto filename = kv.first;
+        bool use_override = fs::exists(overrides / filename);
+        fs::path path = use_override
+            ? overrides / filename
+            : defaults / filename;
+        // https://stackoverflow.com/a/18816228
+        // TODO: There's also a function crow::mustache::load()
+        std::ifstream ifs(path.string(), std::ios::binary | std::ios::ate);
+        if (!ifs) {
+            fmt::fprintf(stderr, "Error opening %s, skipping\n", path.string());
+            continue;
+        }
+        std::streamsize size = ifs.tellg();
+        ifs.seekg(0, std::ios::beg);
+        std::string data(size, '\0');
+        ifs.read(&data[0], size);
+        *kv.second = data;
+    }
+
+    return templates;
+}
+
 
 http_endpoints make_endpoints_multiuser(
     const endpoints_config& config)
@@ -481,17 +615,33 @@ http_endpoints make_endpoints_multiuser(
     state->dev_mode = config.dev_mode;
     state->redirect_url = config.redirect_url;
     state->default_expiry = std::chrono::minutes(config.default_expiry);
+    state->html = load_html(config.html_path);
+
+    state->db.initialize(config.dbpath);
+    for (auto&& user : state->db.bulk_load()) {
+        state->users.insert(user);
+    }
+
+    crow::mustache::set_base(config.mustache_base_path);
 
     http_endpoints endpoints;
     endpoints.opaque = state;
+
+    endpoints.list.get = &list_get;
+    endpoints.view.get = &view_get;
+
     endpoints.signup.get = &signup_get;
     endpoints.signup.post = &signup_post;
+
     endpoints.login.get = &login_get;
     endpoints.login.post = &login_post;
+
     endpoints.generate.get = &generate_get;
     endpoints.generate.post = &generate_post;
+
     endpoints.on_play.post = &on_play;
     endpoints.on_publish.post = &on_publish;
+
     return endpoints;
 }
 

@@ -13,6 +13,14 @@ struct http_handler {
     crow::response (*post)(const crow::request&, void* opaque);
 };
 
+struct http_get_handler {
+    crow::response (*get)(const crow::request&, void* opaque);
+};
+
+struct http_get_handler_arg1 {
+    crow::response (*get)(const crow::request&, const std::string& name, void* opaque);
+};
+
 struct http_post_handler {
     crow::response (*post)(const crow::request&, void* opaque);
 };
@@ -26,6 +34,8 @@ struct http_endpoints {
     http_handler signup;
     http_handler login;
     http_handler generate;
+    http_get_handler list;
+    http_get_handler_arg1 view;
 
     // RTMP callback handlers
     http_post_handler on_publish;

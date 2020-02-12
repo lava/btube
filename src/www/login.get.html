@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<title>bTube - Login</title>
+</head>
+<body>
+	<div class="standardPage">
+	{{> banner.mustache }}
+	<div class="contentSection">
+		<form action="./login" method="POST">
+			<h2 class="formTitle">Log In</h2>
+		    <input name="user" placeholder="Username" type="text" /><br />
+		    <input name="password" placeholder="Password" type="password" /><br />
+		    <input type="submit" value="Log in" />
+		</form>
+	</div>
+	</div>
+</body>
+</html>

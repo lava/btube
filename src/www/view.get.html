@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="/static/main.css">
+	<title>BTube - {{stream.title}} ({{stream.name}})</title>
+</head>
+<body>
+	<div class="standardPage">
+		{{> banner.mustache }}
+		<div class="contentSection">
+			{{#is_live}}
+			<!-- <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script> -->
+			<script src="/static/hls.js"></script>
+
+			<video id="video"></video>
+			<script>
+			function startStream() {
+			  if(!Hls.isSupported()) {
+			    alert("Video playback not supported by this browser");
+			  }
+
+			  var video = document.getElementById('video');
+			  video.setAttribute("controls", "true");
+			  var hls = new Hls();
+			  hls.loadSource('/raw/{{stream.name}}.m3u8');
+			  hls.attachMedia(video);
+			  hls.on(Hls.Events.MANIFEST_PARSED,function() {
+			    video.play();
+			  });
+			}
+
+			startStream();
+			</script>
+			{{/is_live}}
+			{{^is_live}}
+			<p>{{stream.name}} is currently not streaming.</p>
+			{{/is_live}}
+		</div>
+	</div>
+</body>
+</html>

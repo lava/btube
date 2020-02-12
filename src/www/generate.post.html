@@ -1,0 +1,20 @@
+<html>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<title>bTube - Signup</title>
+<body>
+	<div class="standardPage">
+		{{> banner.mustache}}
+		<div class="contentSection" style="text-align: left">
+			<p>
+				Your stream key is <strong>{{stream_key}}</strong>
+			</p>
+
+			<p>
+				Use the following URL to start streaming: {{rtmp_url}} (TODO) <br />
+				Use the following URL for a low-latency RTMP stream (watch e.g. via VLC): {{rtmp_view_url}} (TODO) <br />
+				Use the following URL for a HTTP stream: {{http_url}} (TODO) <br />
+			</p>
+		</div>
+	</div>
+</html>

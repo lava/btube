@@ -18,9 +18,91 @@
 
 #include "config.hpp"
 #include "http_endpoints.hpp"
+#include "userdb.hpp"
 
 
 namespace bpo = boost::program_options;
+namespace fs = boost::filesystem;
+
+namespace {
+
+// TODO: implement proper sendfile()-based file transfer for crow,
+// e.g. like this: https://github.com/ipkn/crow/issues/116
+static void serve_static_file(
+    crow::response& rsp,
+    const fs::path& filepath,
+    const std::string& html_filename,
+    bool attachment)
+{
+    std::ifstream file(filepath.string(), std::ios::binary | std::ios::ate);
+    if (!file) {
+        rsp.code = 404;
+        return rsp.end();
+    }
+
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::string buffer(size, 0);
+    if (!file.read(buffer.data(), size)) {
+        rsp.code = 500;
+        return rsp.end(); // "Internal Server Error"
+    }
+
+    std::string filename = filepath.filename().string();
+    if (filename.find(".mp3") != std::string::npos) {
+        rsp.set_header("Content-Type", "audio/mpeg");
+    } else if (filename.find(".mkv") != std::string::npos) {
+        rsp.set_header("Content-Type", "video/x-matroska");
+    } else if (filename.find(".html") != std::string::npos) {
+        rsp.set_header("Content-Type", "text/html");
+    } else if (filename.find(".js") != std::string::npos) {
+        rsp.set_header("Content-Type", "text/javascript");
+    } else if (filename.find(".css") != std::string::npos) {
+        rsp.set_header("Content-Type", "text/css");
+    } else if (filename.find(".svg") != std::string::npos) {
+        rsp.set_header("Content-Type", "image/svg+xml");
+    } else { // Fallback.
+        rsp.set_header("Content-Type", "application/octet-stream");
+    }
+
+    if (attachment) {
+        if (!html_filename.empty()) {
+            rsp.set_header("Content-Disposition", "attachment; filename=\"" + html_filename + "\"");
+        } else {
+            rsp.set_header("Content-Disposition", "attachment;");
+        }
+    }
+
+    rsp.body = buffer;
+    return rsp.end();
+}
+
+
+static void serve_static_file_from_sandbox(
+    crow::response& rsp,
+    const fs::path& sandbox,
+    const fs::path& subpath,
+    bool attachment = true)
+{
+    // TODO: Not completely sure if this thwarts *all* filename injection attacks,
+    // but afaik `filepath` should already be urldecoded and fs::path doesn't
+    // have any special escape characters.
+    if (boost::algorithm::contains(subpath.string(), "..")
+        || subpath.size() == 0
+        || subpath.string()[0] == '/') {
+        rsp.code = 412; // "Precondition Failed"
+        return rsp.end();
+    }
+
+    fs::path filepath = sandbox / fs::path(subpath);
+    if (!fs::exists(filepath)) {
+        rsp.code = 404;
+        return rsp.end(); // "File Not Found"
+    }
+
+    return serve_static_file(rsp, sandbox / subpath, "", attachment);
+}
 
 
 static std::unordered_map<std::string, std::string> parse_url_form(
@@ -40,10 +122,26 @@ static std::unordered_map<std::string, std::string> parse_url_form(
         return result;
 }
 
+}
 
 void run_server(const rtmp_authserver::server_config& config, rtmp_authserver::http_endpoints endpoints)
 {
     crow::SimpleApp app;
+
+    CROW_ROUTE(app, "/").methods("GET"_method)(
+        [&](const crow::request& rq) {
+            return endpoints.list.get(rq, endpoints.opaque);
+        });
+
+    CROW_ROUTE(app, "/list").methods("GET"_method)(
+        [&](const crow::request& rq) {
+            return endpoints.list.get(rq, endpoints.opaque);
+        });
+
+    CROW_ROUTE(app, "/view/<string>").methods("GET"_method)(
+        [&](const crow::request& rq, const std::string& streamname) {
+            return endpoints.view.get(rq, streamname, endpoints.opaque);
+        });
 
     CROW_ROUTE(app, "/signup").methods("GET"_method)(
         [&](const crow::request& rq) {
@@ -87,31 +185,37 @@ void run_server(const rtmp_authserver::server_config& config, rtmp_authserver::h
 
     CROW_ROUTE(app, "/reject").methods("POST"_method)(
         [](const crow::request& rq)
-    {
-        return 403;
-    });
+        {
+            return 403;
+        });
 
     CROW_ROUTE(app, "/allow").methods("POST"_method)(
         [](const crow::request& rq)
-    {
-        return 200;
-    });
+        {
+            return 200;
+        });
 
     CROW_ROUTE(app, "/allow_local").methods("POST"_method)(
         [](const crow::request& rq)
-    {
-        // TODO: Doesn't crow already give us the parsed query params?
-        auto params = parse_url_form(rq.body);
-        std::string name = params["name"];
-        std::string app = params["app"];
-        std::string addr = params["addr"];
-        fmt::print("Incoming maybe local connection from {} to stream {}/{}\n", addr, app, name);
-        if (addr.rfind("127.0.0.1", 0) == 0) { // if addr starts with 127.0.0.1
-            return 200;
-        } else {
-            return 403;
-        }
-    });
+        {
+            // TODO: Doesn't crow already give us the parsed query params?
+            auto params = parse_url_form(rq.body);
+            std::string name = params["name"];
+            std::string app = params["app"];
+            std::string addr = params["addr"];
+            fmt::print("Incoming maybe local connection from {} to stream {}/{}\n", addr, app, name);
+            if (addr.rfind("127.0.0.1", 0) == 0) { // if addr starts with 127.0.0.1
+                return 200;
+            } else {
+                return 403;
+            }
+        });
+
+    CROW_ROUTE(app, "/static/<string>")(
+        [&] (const crow::request& rq, crow::response& rsp, const std::string& filename)
+        {
+            serve_static_file_from_sandbox(rsp, config.static_html_path, filename);
+        });
 
     if (config.tls) {
         throw std::runtime_error("TLS not supported yet!");
@@ -147,7 +251,13 @@ void parse_configuration(int argc, char* argv[], rtmp_authserver::server_config&
          "Allow transporting session cookies over plain HTTP")
         ("redirect-url", bpo::value<std::string>(&endpoints_config.redirect_url),
          "URL of relay rtmp server in multi-user mode."
-         " Must start with 'rtmp://'.");
+         " Must start with 'rtmp://'.")
+        ("html-path", bpo::value<std::string>(&endpoints_config.html_path),
+         "Path to html overrides")
+        ("mustache-base-path", bpo::value<std::string>(&endpoints_config.mustache_base_path),
+         "Base path for includes in .mustache templates.")
+        ("userdb", bpo::value<std::string>(&endpoints_config.dbpath),
+         "Path to users sqlite database");
 
     // TODO: Useful options
     //  * http-path-prefix: HTTP path preceding the incoming endpoints (to avoid nginx rewrite rules)
@@ -165,10 +275,12 @@ void parse_configuration(int argc, char* argv[], rtmp_authserver::server_config&
     bpo::notify(vm);
     // `config` is initialized now
 
-    if (server_config.multiuser) {
-        fmt::printf("Warning: Persistent backend storage not yet implemented, all users/passwords will be wiped on restart.\n");
-        // TODO - verify that redirect_url starts with 'rtmp://'
-        // TODO - verify that redirect_url contains ip literal (no hostname allowed)
+    if (endpoints_config.dev_mode) {
+        // Assume the server is running from the build dir in dev mode
+        endpoints_config.html_path = "./src/www";
+        endpoints_config.mustache_base_path = "./src/www";
+        endpoints_config.dbpath = "./users.db";
+        server_config.static_html_path = "./src/www/static";
     }
 
     if (!server_config.tls && (server_config.bindaddr != "localhost" && server_config.bindaddr != "127.0.0.1")) {

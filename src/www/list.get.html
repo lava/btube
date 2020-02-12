@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<title>bTube - Overview</title>
+</head>
+<body>
+	<div class="standardPage">
+		{{> banner.mustache}}
+		<div class="contentSection">
+			<h1>Live Streams</h1>
+			<ul>
+				{{#streams}}
+				<li>
+					<a href="./view/{{name}}"> {{name}} - {{title}} </a>
+				</li>
+				{{/streams}}
+				{{^streams}}
+				No {{^user}}public{{/user}} streams are currently live.
+				{{/streams}}
+			</ul>
+		</div>
+	</div>
+</body>
+</html>

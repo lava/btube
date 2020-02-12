@@ -7,6 +7,7 @@
 namespace rtmp_authserver {
 
 struct server_config {
+	std::string static_html_path;
     std::string bindaddr;
     uint16_t port;
     unsigned int threads;
@@ -15,8 +16,10 @@ struct server_config {
 
 struct endpoints_config {
     std::string signup_key;
-    std::string success_template_path;
     std::string redirect_url;
+    std::string html_path;
+    std::string mustache_base_path;
+    std::string dbpath;
     unsigned int default_expiry;
     bool dev_mode;
 };

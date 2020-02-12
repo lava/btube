@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" type="text/css" href="static/main.css">
+	<link rel="stylesheet" type="text/css" href="static/slider.css">
+	<title>bTube - Login</title>
+</head>
+<body>
+	<div class="standardPage">
+	{{> banner.mustache }}
+	<div class="contentSection">
+		<p>
+		{{#stream_key}}
+		Your current stream key is <strong>{{stream_key}}</strong>
+		{{/stream_key}}
+		</p>
+
+		<p>
+	    <form action="./generate" method="POST">
+			<h2 class="formTitle">Generate New Stream Key</h2>
+			<ul class="formFieldsList">
+				<li>
+	    	<label class="switch">
+			  <input name="public" type="checkbox"> 
+			  <span class="slider round"></span>
+			</label> Public stream
+		</li>
+		<li>
+			<label for="valid_for">Key Valid For:</label>
+			<select id="valid_for" name="valid_for">
+			  <option value="1200">20 minutes</option>
+			  <option value="14400" selected="true">4 hours</option>
+			  <option value="0">Unlimited</option>
+			</select>
+		</li>
+		<li>
+			<input name="title" type="text" placeholder="Stream title">
+		</li>
+		<li>
+	        <input type="submit" value="Generate stream key" />
+	    </li>
+	    </ul>
+	    </form>
+		</p>
+	</div>
+	</div>
+</body>
+</html>
