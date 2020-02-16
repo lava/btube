@@ -248,13 +248,11 @@ void parse_configuration(int argc, char* argv[], btube::server_config& server_co
          "Number of worker threads")
         ("dev-mode", bpo::value<bool>(&endpoints_config.dev_mode)->default_value(false),
          "Allow transporting session cookies over plain HTTP")
-        ("redirect-url", bpo::value<std::string>(&endpoints_config.redirect_url),
+        ("redirect-url", bpo::value<std::string>(&endpoints_config.redirect_url)->required(),
          "URL of relay rtmp server in multi-user mode."
          " Must start with 'rtmp://'.")
         ("html-path", bpo::value<std::string>(&endpoints_config.html_path),
          "Path to html overrides")
-        ("mustache-base-path", bpo::value<std::string>(&endpoints_config.mustache_base_path),
-         "Base path for includes in .mustache templates.")
         ("userdb", bpo::value<std::string>(&endpoints_config.dbpath),
          "Path to users sqlite database");
 
@@ -277,7 +275,7 @@ void parse_configuration(int argc, char* argv[], btube::server_config& server_co
     if (endpoints_config.dev_mode) {
         // Assume the server is running from the build dir in dev mode
         endpoints_config.html_path = "./src/www";
-        endpoints_config.mustache_base_path = "./src/www";
+        // endpoints_config.mustache_base_path = "./src/www";
         endpoints_config.dbpath = "./users.db";
         server_config.static_html_path = "./src/www/static";
     }

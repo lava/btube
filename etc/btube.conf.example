@@ -1,1 +1,2 @@
 secret=VERY_SECRET_STRING
+redirect-url=rtmp://127.0.0.1/stream

@@ -23,7 +23,7 @@ http {
   }
 }
 
-# This part would typically go into `/etc/nginx/modules.d/rtmp-livestreaming.conf`.
+# This part would typically go into `/etc/nginx/modules-available/rtmp-livestreaming.conf`.
 rtmp {
   server {
     listen 1935;
@@ -39,7 +39,7 @@ rtmp {
     application stream {
       live on;
       hls on;
-      hls_path /var/www/livestreams/raw;
+      hls_path /var/www/btube/raw;
       record off;
 
       on_play http://127.0.0.1:3223/on_play;

@@ -18,7 +18,6 @@ struct endpoints_config {
     std::string signup_key;
     std::string redirect_url;
     std::string html_path;
-    std::string mustache_base_path;
     std::string dbpath;
     unsigned int default_expiry;
     bool dev_mode;

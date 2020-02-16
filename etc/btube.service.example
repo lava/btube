@@ -4,4 +4,4 @@ Description=Simple http server providing on_publish authentication for the nginx
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/btube-server -c /etc/btube.conf
-User=nobody
+User=btube

@@ -642,7 +642,7 @@ http_endpoints make_endpoints_multiuser(
         state->users.insert(user);
     }
 
-    crow::mustache::set_base(config.mustache_base_path);
+    crow::mustache::set_base(config.html_path);
 
     http_endpoints endpoints;
     endpoints.opaque = state;

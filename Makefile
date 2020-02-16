@@ -22,10 +22,25 @@ clean::
 
 PREFIX = /usr/local
 
+# TODO: Pass these values as defines when compiling.
+# TODO: Allow specifying separate paths for mustache templates and static resources.
+bindir = $(DESTDIR)$(PREFIX)/bin
+wwwdir = $(DESTDIR)$(PREFIX)/var/www/btube/
+datadir = $(DESTDIR)$(PREFIX)/var/run/btube
+
 install:
 	@# TODO: Make these paths user-configurable, and then pass them as defines
 	@#       to the binaries when compiling.
-	mkdir -p $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/var/www/btube/static $(DESTDIR)$(PREFIX)/var/run/btube
-	install $(installed_binaries) $(DESTDIR)$(PREFIX)/bin
-	install -m 644 $(installed_html_templates) $(DESTDIR)$(PREFIX)/var/www/btube/
-	install -m 644 $(installed_static_www_resources) $(DESTDIR)$(PREFIX)/var/www/btube/static/
+	mkdir -p  $(bindir) $(wwwdir) $(datadir)
+	install $(installed_binaries) $(bindir)
+	install -m 644 $(installed_html_templates) $(wwwdir)
+	install -m 644 $(installed_static_www_resources) $(wwwdir)/static/
+
+# Convenience install step including extra functionality that would
+# usually go in a postinst script.
+system_install:
+	systemctl stop btube
+	$(MAKE) install
+	adduser --no-create-home --disabled-password --disabled-login btube
+	chown btube:btube $(datadir)
+	systemctl start btube
