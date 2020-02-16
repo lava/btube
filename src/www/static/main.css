@@ -57,19 +57,28 @@ strong {
 }
 
 .standardPage {	
-  text-align: center;
   display: flex;
 }
 
-.formTitle {
-	text-align: center;
-    font-weight: 300;
-    color: var(--color-text-dark);
-}
 
 .formFieldsList {	
   list-style-type: none;
   padding: 0;
+  text-align: left;
+  margin-left: 30px;
+}
+
+form h2 {
+	text-align: left;
+  font-weight: bold;
+  margin-left: 40px;
+  color: var(--color-text-dark);
+}
+
+.formFieldsList li {
+  margin-top: 10px;
+  margin-left: 10px;
+  margin-bottom: 10px;
 }
 
 input[type=text],[type=password]  {
@@ -84,6 +93,11 @@ input[type=text],[type=password]  {
   background-color: var(--color-bg-medium);
   color: var(--color-text-light);
   outline: none;
+}
+
+input[type=select] {
+  color: var(--color--highlight-light);
+  background-color: var(--color--highlight-light);
 }
 
 input[type=submit] {
@@ -104,8 +118,7 @@ input[type=submit]:hover {
 }
 
 .contentSection {
-  margin-top: 50px;
-  width: 550px;
+  width: 80%;
 }
 
 form {
@@ -123,11 +136,12 @@ form {
   color: var(--color-text-dark);
   padding: 30px 0;
   border-right: 5px solid var(--color-highlight-dark);
-  h2 {
-    padding-top: 30px;
-    font-weight: 300;
+  text-align: center;
+}
+
+.bannerSection h2 {
+    font-weight: bold;
     text-align: center;
-  }
 }
 
 .bannerSectionList {
