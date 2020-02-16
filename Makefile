@@ -31,7 +31,7 @@ datadir = $(DESTDIR)$(PREFIX)/var/run/btube
 install:
 	@# TODO: Make these paths user-configurable, and then pass them as defines
 	@#       to the binaries when compiling.
-	mkdir -p  $(bindir) $(wwwdir) $(datadir)
+	mkdir -p  $(bindir) $(datadir) $(wwwdir)/static
 	install $(installed_binaries) $(bindir)
 	install -m 644 $(installed_html_templates) $(wwwdir)
 	install -m 644 $(installed_static_www_resources) $(wwwdir)/static/
