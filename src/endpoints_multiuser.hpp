@@ -8,11 +8,8 @@
 #include "userdb.hpp"
 #include "mustache.hpp"
 
-//#include "crow_all.h"
-
-// "Private" header for the `multiuser` implementation of the
-// http interface.
-namespace rtmp_authserver {
+// "Private" header for the implementation of the http interface.
+namespace btube {
 
 typedef std::chrono::system_clock::time_point timepoint;
 
@@ -24,11 +21,6 @@ struct livestream {
     bool is_live;
     timepoint key_valid_until;
 };
-
-// struct user {
-//     std::string name;
-//     std::string encoded_password; // Includes salt.
-// };
 
 bool operator<(const user& lhs, const user& rhs);
 bool operator<(const std::string& lhs, const user& rhs);
@@ -70,4 +62,4 @@ struct backend_state {
 	std::vector<livestream> streams;
 };
 
-} // namespace rtmp_authserver
+} // namespace btube

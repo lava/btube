@@ -6,7 +6,7 @@
 
 #include "config.hpp"
 
-namespace rtmp_authserver {
+namespace btube {
 
 struct http_handler {
     crow::response (*get)(const crow::request&, void* opaque);
@@ -49,4 +49,4 @@ struct http_endpoints {
 http_endpoints make_endpoints_multiuser(
     const endpoints_config& config);
 
-} // namespace rtmp_authserver
+} // namespace btube

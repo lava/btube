@@ -1,9 +1,10 @@
-# This configuration assumes that `rtmp-authserver` is running
-# in multi-user mode listening on port 3223 on the same machine.
+# This sample configuration assumes that `btube-server` is
+# listening on port 3223 on the same machine.
 
 events {}
 
 http {
+  # This part would typically go into `/etc/nginx/sites-available/btube`
   upstream backend {
     server 127.0.0.1:3223;
   }
@@ -14,26 +15,15 @@ http {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    root /var/www/livestreams;
+    root /var/www/btube;
 
     location = / {
-        try_files /viewer.html =404;
-    }
-
-    location /generate {
-      proxy_pass http://backend;
-    }
-
-    location /login {
-      proxy_pass http://backend;
-    }
-
-    location /signup {
-      proxy_pass http://backend;
+        proxy_pass http://backend;
     }
   }
 }
 
+# This part would typically go into `/etc/nginx/modules.d/rtmp-livestreaming.conf`.
 rtmp {
   server {
     listen 1935;
@@ -52,8 +42,8 @@ rtmp {
       hls_path /var/www/livestreams/raw;
       record off;
 
-      on_publish http://127.0.0.1:3223/allow_local;
       on_play http://127.0.0.1:3223/on_play;
+      on_publish http://127.0.0.1:3223/allow_local;
     }
   }
 }

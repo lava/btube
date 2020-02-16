@@ -3,7 +3,7 @@
 
 #include <sqlite3.h>
 
-namespace rtmp_authserver {
+namespace btube {
 
 struct user {
 	std::string name;
@@ -34,4 +34,4 @@ private:
 };
 
 
-} // namespace rtmp_authserver
+} // namespace btube

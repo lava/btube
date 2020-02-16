@@ -4,7 +4,7 @@
 
 #include "crow_all.h"
 
-namespace rtmp_authserver {
+namespace btube {
 
 struct server_config {
 	std::string static_html_path;
@@ -26,4 +26,4 @@ struct endpoints_config {
 
 server_config parse_configuration(int argc, const char* argv[]);
 
-} // namespace rtmp_authserver
+} // namespace btube

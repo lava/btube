@@ -124,7 +124,7 @@ static std::unordered_map<std::string, std::string> parse_url_form(
 
 }
 
-void run_server(const rtmp_authserver::server_config& config, rtmp_authserver::http_endpoints endpoints)
+void run_server(const btube::server_config& config, btube::http_endpoints endpoints)
 {
     crow::SimpleApp app;
 
@@ -203,7 +203,6 @@ void run_server(const rtmp_authserver::server_config& config, rtmp_authserver::h
             std::string name = params["name"];
             std::string app = params["app"];
             std::string addr = params["addr"];
-            fmt::print("Incoming maybe local connection from {} to stream {}/{}\n", addr, app, name);
             if (addr.rfind("127.0.0.1", 0) == 0) { // if addr starts with 127.0.0.1
                 return 200;
             } else {
@@ -228,7 +227,7 @@ void run_server(const rtmp_authserver::server_config& config, rtmp_authserver::h
         .run();
 }
 
-void parse_configuration(int argc, char* argv[], rtmp_authserver::server_config& server_config, rtmp_authserver::endpoints_config& endpoints_config)
+void parse_configuration(int argc, char* argv[], btube::server_config& server_config, btube::endpoints_config& endpoints_config)
 {
     std::string config_filename;
 
@@ -261,7 +260,7 @@ void parse_configuration(int argc, char* argv[], rtmp_authserver::server_config&
 
     // TODO: Useful options
     //  * http-path-prefix: HTTP path preceding the incoming endpoints (to avoid nginx rewrite rules)
-    //  * ...
+    //  * conf-dir: allow creating a btube.d/ conf directory for proper packaging
 
     bpo::variables_map vm;
     bpo::store(bpo::parse_command_line(argc, argv, desc), vm);
@@ -290,8 +289,8 @@ void parse_configuration(int argc, char* argv[], rtmp_authserver::server_config&
 
 int main(int argc, char* argv[])
 {
-    rtmp_authserver::server_config server_config;
-    rtmp_authserver::endpoints_config endpoints_config;
+    btube::server_config server_config;
+    btube::endpoints_config endpoints_config;
     try {
         parse_configuration(argc, argv, server_config, endpoints_config);
     } catch (boost::program_options::error& e) {
@@ -299,6 +298,6 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto endpoints = rtmp_authserver::make_endpoints_multiuser(endpoints_config);
+    auto endpoints = btube::make_endpoints_multiuser(endpoints_config);
     run_server(server_config, endpoints);
 }

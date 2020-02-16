@@ -13,7 +13,7 @@
 
 #include "expected.hpp"
 
-namespace rtmp_authserver {
+namespace btube {
 
 html_templates load_html(const std::string& html_path);
 
@@ -112,7 +112,7 @@ static std::string start_session(const std::string& user, backend_state* state)
 }
 
 static tl::expected<std::string, std::string>
-authorize_user(const crow::request& req, struct rtmp_authserver::backend_state* state)
+authorize_user(const crow::request& req, struct backend_state* state)
 {
     if (!req.headers.count("Cookie")) {
         return tl::unexpected<std::string>("No cookies found.");
@@ -178,6 +178,8 @@ authorize_user(const crow::request& req, struct rtmp_authserver::backend_state* 
         } \
         subject = subject_.value(); \
     }
+
+#define LOCKED(mtx) if (std::lock_guard<std::mutex> lock{(mtx)}; true)
 
 } // namespace {
 
@@ -502,10 +504,28 @@ crow::response view_get(const crow::request& rq, const std::string& streamname, 
 
 crow::response on_play(const crow::request& rq, void* opaque)
 {
+    auto* state = static_cast<struct backend_state*>(opaque);
+
     auto params = parse_url_form(rq.body);
     std::string name = params["name"];
     std::string app = params["app"];
-    fmt::printf("Permitting playing from %s on app %s\n", name, app);
+
+    bool is_public = false;
+    {
+        std::lock_guard<std::mutex> lock(state->streams_mutex);
+
+        auto it = std::find_if(state->streams.begin(), state->streams.end(),
+            [&](const livestream& sk) { return sk.username == name; });
+
+        if (it != state->streams.end()) {
+            is_public = it->is_public;
+        }
+    }
+
+    if (!is_public) {
+        fmt::printf("Refusing raw rtmp request for name %s (app %s)\n", name, app);
+        return crow::response(403);
+    }
     return crow::response(200);
 }
 
@@ -553,7 +573,7 @@ void validate_config(const endpoints_config& config)
 
 // TODO: Set this in the build system
 #ifndef DEFAULT_HTML_PATH
-#define DEFAULT_HTML_PATH "/usr/share/rtmp_authserver/html"
+#define DEFAULT_HTML_PATH "/var/www/btube/html"
 #define DEFAULT_USERDB_PATH "users.db"
 #endif
 
@@ -645,4 +665,4 @@ http_endpoints make_endpoints_multiuser(
     return endpoints;
 }
 
-} // namespace rtmp_authserver
+} // namespace btube

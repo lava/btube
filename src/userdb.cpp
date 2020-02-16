@@ -2,7 +2,7 @@
 
 #include <fmt/printf.h>
 
-namespace rtmp_authserver {
+namespace btube {
 
 userdb::userdb()
   : db(nullptr)
@@ -115,4 +115,4 @@ errout:
     return result;
 }
 
-} // namespace rtmp_authserver
+} // namespace btube
