@@ -9,7 +9,7 @@
 	<div class="standardPage">
 		{{> banner.mustache }}
 		<div class="contentSection">
-			{{#is_live}}
+			{{#stream.is_live}}
 			<!-- <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script> -->
 			<script src="/static/hls.js"></script>
 
@@ -23,6 +23,7 @@
 			  var video = document.getElementById('video');
 			  video.setAttribute("controls", "true");
 			  var hls = new Hls();
+			  // TODO: authenticate the raw endpoint
 			  hls.loadSource('/raw/{{stream.name}}.m3u8');
 			  hls.attachMedia(video);
 			  hls.on(Hls.Events.MANIFEST_PARSED,function() {
@@ -32,10 +33,10 @@
 
 			startStream();
 			</script>
-			{{/is_live}}
-			{{^is_live}}
+			{{/stream.is_live}}
+			{{^stream.is_live}}
 			<p>{{stream.name}} is currently not streaming.</p>
-			{{/is_live}}
+			{{/stream.is_live}}
 		</div>
 	</div>
 </body>

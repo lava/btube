@@ -90,7 +90,7 @@ static void cleanup_old_keys(std::vector<livestream>& v)
 {
         auto now = std::chrono::system_clock::now();
         auto end = std::remove_if(v.begin(), v.end(),
-                [&](const livestream& sk) { return sk.key_valid_until <= now; });
+            [&](const livestream& sk) { return sk.key_valid_until <= now; });
 
         v.erase(end, v.end());
 }
@@ -394,11 +394,9 @@ crow::response generate_post(const crow::request& rq, void* opaque)
 
     std::string key = random_string(25);
 
-    // TODO: parse actual values from request
     auto params = parse_url_form(rq.body);
     std::string ppublic = params["public"];
-    fmt::printf("got param %s\n", ppublic);
-    std::string validity = params["validity"];
+    std::string validity = params["valid_for"];
     char* idx;
     int validity_seconds = std::strtol(validity.c_str(), &idx, 10);
     if ((&validity[0] + validity.size()) != idx) {
@@ -415,6 +413,9 @@ crow::response generate_post(const crow::request& rq, void* opaque)
         std::lock_guard<std::mutex> lock(state->streams_mutex);
         cleanup_old_keys(state->streams);
         state->streams.push_back(livestream {key, user, title, is_public, is_live, valid_until});
+        for (auto& ls : state->streams) {
+            fmt::printf(" - stream %s\n", ls.key);
+        }
     }
 
     ctx["stream_key"] = key;
@@ -467,8 +468,7 @@ crow::response view_get(const crow::request& rq, const std::string& streamname, 
 {
     auto* state = static_cast<struct backend_state*>(opaque);
     tl::expected<std::string, std::string> user = authorize_user(rq, state);
- 
-    // TODO: do the actual logic here
+
     livestream stream_info;
     bool valid = false;;
     {
@@ -482,6 +482,7 @@ crow::response view_get(const crow::request& rq, const std::string& streamname, 
     }
 
     // Show private streams only to signed-up users.
+    // TODO: Authenticate the actual `/raw` endpoint as well.
     if (!user && valid && !stream_info.is_public) {
         valid = false;
     }
@@ -492,8 +493,8 @@ crow::response view_get(const crow::request& rq, const std::string& streamname, 
     }
     crow::mustache::context stream_ctx;
     stream_ctx["name"] = streamname; // TODO: Is this enabling XSS attacks?
-    if (valid ) {
-        stream_ctx["live"] = stream_info.is_live;
+    if (valid) {
+        stream_ctx["is_live"] = stream_info.is_live;
         stream_ctx["public"] = stream_info.is_public;
         stream_ctx["title"] = stream_info.title;
     }
@@ -535,8 +536,10 @@ crow::response on_publish(const crow::request& rq, void* opaque)
     auto* state = static_cast<struct backend_state*>(opaque);
     auto params = parse_url_form(rq.body);
     std::string key = params["name"];
+    fmt::printf("Publish request for %s\n", key);
+
     livestream stream_info;
-    bool valid;
+    bool valid = false;
     {
         std::lock_guard<std::mutex> lock(state->streams_mutex);
         cleanup_old_keys(state->streams);
@@ -546,6 +549,7 @@ crow::response on_publish(const crow::request& rq, void* opaque)
 
         valid = it != state->streams.end();
         if (valid) {
+            it->is_live = true; // TODO: handle on_publish_done and reset this to `false`
             stream_info = *it; 
         }
     }
